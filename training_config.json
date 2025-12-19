@@ -1,0 +1,19 @@
+{
+    "learning_rate": 0.2,
+    "discount_factor": 0.9,
+    "epsilon_start": 1.0,
+    "goal_reward": 10000,
+    "wall_penalty": -1000.0,
+    "idle_penalty": -10,
+    "sensor_penalty": -100,
+    "speed_reward_factor": 3.0,
+    "distance_reward_factor": 0.1,
+    "steering_penalty": -0.20270270270270263,
+    "use_speed_reward": true,
+    "use_wall_penalty": true,
+    "use_idle_penalty": true,
+    "use_sensor_penalty": true,
+    "use_distance_reward": false,
+    "use_steering_penalty": true,
+    "use_goal_reward": true
+}

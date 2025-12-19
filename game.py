@@ -7,6 +7,7 @@ from agent2 import DQNAgent
 from agent2 import DQNAgent
 from ui_manager import COLORS, UIButton, UISlider, UIToggle, get_font
 from maps import AVAILABLE_MAPS
+from config import TrainingConfig, PRESETS
 
 # Constants
 SCREEN_WIDTH = 1400
@@ -56,7 +57,158 @@ def draw_map_preview(screen, rect, map_obj):
     )
     pygame.draw.rect(screen, COLORS["SUCCESS"], scaled_finish)
 
-def show_menu(screen):
+def show_configurator(screen, current_config):
+    # Background
+    screen.fill(COLORS["BACKGROUND"])
+    
+    font_title = get_font(32, bold=True)
+    title = font_title.render("Training Configuration", True, COLORS["TEXT_PRIMARY"])
+    screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 50))
+    
+    # UI Elements container
+    sliders = []
+    buttons = []
+    
+    # helper to reset sliders from config
+    def sync_sliders():
+        nonlocal sliders
+        # Update slider values to match current_config
+        # We need to map sliders to config attributes
+        # This is a bit manual but works
+        pass # We'll do it by recreating or updating values directly
+        
+    # --- Columns ---
+    col1_x = 100
+    col2_x = SCREEN_WIDTH//2 + 50
+    start_y = 120
+    spacing = 80
+    
+    # Hyperparameters
+    s_lr = UISlider(col1_x, start_y, 400, 20, 0.0001, 0.5, current_config.learning_rate, "Learning Rate", precision=4)
+    s_gamma = UISlider(col1_x, start_y + spacing, 400, 20, 0.1, 0.99, current_config.discount_factor, "Discount Factor", precision=2)
+    s_epsilon = UISlider(col1_x, start_y + spacing*2, 400, 20, 0.1, 1.0, current_config.epsilon_start, "Epsilon Start", precision=2)
+    
+    sliders.extend([s_lr, s_gamma, s_epsilon])
+    
+    # Rewards
+    # We have more rewards now, need to squeeze or organize
+    # Let's put Toggles next to Sliders? Or just list them.
+    
+    def make_reward_row(y, label, key_val, key_toggle, min_v, max_v, is_int=False):
+        # Toggle
+        t = UIToggle(col2_x, y, "", getattr(current_config, key_toggle))
+        # Slider
+        s = UISlider(col2_x + 30, y, 370, 20, min_v, max_v, getattr(current_config, key_val), label, is_integer=is_int)
+        return t, s
+        
+    r_rows = []
+    r_rows.append(make_reward_row(start_y, "Goal Reward", "goal_reward", "use_goal_reward", 100, 10000, True))
+    r_rows.append(make_reward_row(start_y + spacing, "Wall Penalty", "wall_penalty", "use_wall_penalty", -10000, -100, True))
+    r_rows.append(make_reward_row(start_y + spacing*2, "Speed Factor", "speed_reward_factor", "use_speed_reward", 0.0, 5.0, False))
+    r_rows.append(make_reward_row(start_y + spacing*3, "Wall Prox. Penalty", "sensor_penalty", "use_sensor_penalty", -100, 0, True))
+    r_rows.append(make_reward_row(start_y + spacing*4, "Idle Penalty", "idle_penalty", "use_idle_penalty", -100, 0, True))
+    r_rows.append(make_reward_row(start_y + spacing*5, "Distance Reward", "distance_reward_factor", "use_distance_reward", 0.0, 1.0, False))
+    r_rows.append(make_reward_row(start_y + spacing*6, "Steering Penalty", "steering_penalty", "use_steering_penalty", -5.0, 0.0, False))
+
+    toggles_ui = [r[0] for r in r_rows]
+    sliders_Rew = [r[1] for r in r_rows]
+    
+    sliders.extend(sliders_Rew)
+    # We handle toggles separately for drawing/events
+    
+    # Preset Buttons logic update
+    def apply_preset(name):
+        new_c = PRESETS[name]()
+        current_config.from_dict(new_c.to_dict())
+        # Update UI
+        s_lr.value = current_config.learning_rate; s_lr.update_handle_pos()
+        s_gamma.value = current_config.discount_factor; s_gamma.update_handle_pos()
+        s_epsilon.value = current_config.epsilon_start; s_epsilon.update_handle_pos()
+        
+        # Update Reward UI rows
+        # We need to map back... 
+        # Easier to just rebuild the scene? Or manually update.
+        # Let's manually update since we have references
+        # Mapping: 0=Goal, 1=Wall, 2=Speed, 3=Sensor, 4=Idle, 5=Dist, 6=Steer
+        keys = [
+            ("goal_reward", "use_goal_reward"),
+            ("wall_penalty", "use_wall_penalty"),
+            ("speed_reward_factor", "use_speed_reward"),
+            ("sensor_penalty", "use_sensor_penalty"),
+            ("idle_penalty", "use_idle_penalty"),
+            ("distance_reward_factor", "use_distance_reward"),
+            ("steering_penalty", "use_steering_penalty")
+        ]
+        
+        for i, (k_val, k_tog) in enumerate(keys):
+            toggles_ui[i].checked = getattr(current_config, k_tog)
+            sliders_Rew[i].value = getattr(current_config, k_val)
+            sliders_Rew[i].update_handle_pos()
+            
+    btn_def = UIButton(col1_x, 550, 150, 40, "Default", lambda: apply_preset("Default"))
+    btn_agg = UIButton(col1_x + 170, 550, 150, 40, "Aggressive", lambda: apply_preset("Aggressive"))
+    btn_cau = UIButton(col1_x + 340, 550, 150, 40, "Cautious", lambda: apply_preset("Cautious"))
+    
+    buttons.extend([btn_def, btn_agg, btn_cau])
+    
+    # Back Button
+    sub_done = False
+    def go_back():
+        nonlocal sub_done
+        # Save values back to config
+        current_config.learning_rate = s_lr.value
+        current_config.discount_factor = s_gamma.value
+        current_config.epsilon_start = s_epsilon.value
+        
+        keys = [
+            ("goal_reward", "use_goal_reward"),
+            ("wall_penalty", "use_wall_penalty"),
+            ("speed_reward_factor", "use_speed_reward"),
+            ("sensor_penalty", "use_sensor_penalty"),
+            ("idle_penalty", "use_idle_penalty"),
+            ("distance_reward_factor", "use_distance_reward"),
+            ("steering_penalty", "use_steering_penalty")
+        ]
+        for i, (k_val, k_tog) in enumerate(keys):
+             setattr(current_config, k_val, sliders_Rew[i].value)
+             setattr(current_config, k_tog, toggles_ui[i].checked)
+             
+        sub_done = True
+        
+    btn_back = UIButton(20, 20, 100, 40, "< Back", go_back)
+    buttons.append(btn_back)
+    
+    while not sub_done:
+        screen.fill(COLORS["BACKGROUND"])
+        screen.blit(title, (SCREEN_WIDTH//2 - title.get_width()//2, 50))
+        
+        # Headers
+        font_h = get_font(20, bold=True)
+        h1 = font_h.render("Hyperparameters", True, COLORS["ACCENT_BLUE"])
+        screen.blit(h1, (col1_x, 80))
+        h2 = font_h.render("Reward Functions (Toggle / Value)", True, COLORS["ACCENT_PURPLE"])
+        screen.blit(h2, (col2_x, 80))
+        h3 = font_h.render("Presets", True, COLORS["TEXT_SECONDARY"])
+        screen.blit(h3, (col1_x, 520))
+        
+        for s in sliders: s.draw(screen)
+        for t in toggles_ui: t.draw(screen)
+        for b in buttons: b.draw(screen)
+        
+        pygame.display.flip()
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                go_back()
+                return
+            for s in sliders: s.handle_event(event)
+            for t in toggles_ui: t.handle_event(event) # Handle toggles
+            for b in buttons: b.handle_event(event)
+            
+    # Auto-save when exiting config
+    current_config.save()
+
+def show_menu(screen, config):
     # Background
     screen.fill(COLORS["BACKGROUND"])
     
@@ -112,9 +264,14 @@ def show_menu(screen):
         if selected_agent:
             start_clicked = True
             
+    def open_config():
+        show_configurator(screen, config)
+        
+    btn_config = UIButton(SCREEN_WIDTH//2 + 120, 720, 150, 50, "Configure", open_config)
+    
     btn_start = UIButton(SCREEN_WIDTH//2 - 100, 720, 200, 50, "START SIMULATION", start_game, color=COLORS["ACCENT_BLUE"], text_color=COLORS["BLACK"])
     
-    buttons = [btn_classic, btn_dqn, btn_prev, btn_next, btn_start]
+    buttons = [btn_classic, btn_dqn, btn_prev, btn_next, btn_start, btn_config]
     
     while not start_clicked:
         screen.fill(COLORS["BACKGROUND"])
@@ -146,13 +303,13 @@ def show_menu(screen):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
-                return None, None, None
+                return None, None, None, None
             
             for btn in buttons:
                 btn.handle_event(event)
             slider_cars.handle_event(event)
             
-    return selected_agent, int(slider_cars.value), AVAILABLE_MAPS[selected_map_idx]
+    return selected_agent, int(slider_cars.value), AVAILABLE_MAPS[selected_map_idx], config
 
 def draw_car(screen, car, offset_x, offset_y, is_best=False):
     alpha = 255 if is_best else 50 
@@ -306,8 +463,12 @@ def main():
     pygame.display.set_caption("AI Car Simulation - Gemini UI")
     clock = pygame.time.Clock()
     
+    # Load Config
+    train_config = TrainingConfig()
+    train_config.load()
+
     while True: # Main App Loop (Menu -> Game -> Menu)
-        agent_choice, num_cars, selected_map = show_menu(screen)
+        agent_choice, num_cars, selected_map, train_config = show_menu(screen, train_config)
         if agent_choice is None: break
         
         # Game Setup
@@ -316,12 +477,12 @@ def main():
         actions = [0, 1, 2, 3, 4]
         
         if agent_choice == "classic":
-            agent = QLearningAgent(actions)
+            agent = QLearningAgent(actions, learning_rate=train_config.learning_rate, discount_factor=train_config.discount_factor, epsilon=train_config.epsilon_start)
             agent_name = "Q-Table"
             from heatmap import SensorActionHeatmap
             heatmap = SensorActionHeatmap(agent, 0, 0, 100, 100) # Rect updated later
         else:
-            agent = DQNAgent(actions)
+            agent = DQNAgent(actions, learning_rate=train_config.learning_rate, gamma=train_config.discount_factor, epsilon=train_config.epsilon_start)
             agent_name = "DQN (NN)"
             try: agent.load()
             except: pass
@@ -347,21 +508,55 @@ def main():
         btn_reset = UIButton(20, SCREEN_HEIGHT - 140, SIDEBAR_WIDTH - 40, 50, "Reset Training", on_reset, color=COLORS["PANEL_BG"], text_color=COLORS["DANGER"])
         btn_back = UIButton(20, SCREEN_HEIGHT - 70, SIDEBAR_WIDTH - 40, 50, "Back to Menu", on_back)
         
-        slider_speed = UISlider(20, 140, SIDEBAR_WIDTH - 40, 20, 1, 50, 1, "Sim Speed (FPS Multiplier)", is_integer=True)
+        # Sidebar Live Tuning UI
+        # We'll use a tabbed or scrollable approach? No, just squeeze them in.
+        # But we haven't much space from y=300 to y=660. ~360px.
+        # We need small sliders.
+        
+        lt_sliders = []
+        lt_toggles = []
+        # Re-use config references logic
+        lt_start_y = 310
+        lt_spacing = 40
+        
+        lt_keys = [
+            ("speed_reward_factor", "use_speed_reward", "Speed Rew", 0, 5, False),
+            ("wall_penalty", "use_wall_penalty", "Wall Pen", -5000, -100, True),
+            ("sensor_penalty", "use_sensor_penalty", "Prox Pen", -50, 0, True),
+            ("distance_reward_factor", "use_distance_reward", "Dist Rew", 0, 1, False),
+            ("steering_penalty", "use_steering_penalty", "Steer Pen", -1, 0, False)
+        ]
+        
+        for i, (k_val, k_tog, lbl, min_v, max_v, is_int) in enumerate(lt_keys):
+            y = lt_start_y + i * lt_spacing
+            # Small toggle
+            t = UIToggle(20, y, "", getattr(train_config, k_tog))
+            # Small slider
+            s = UISlider(50, y, SIDEBAR_WIDTH - 70, 20, min_v, max_v, getattr(train_config, k_val), lbl, is_integer=is_int)
+            lt_sliders.append(s)
+            lt_toggles.append(t)
+            
+        def update_live_config():
+            for i, (k_val, k_tog, _, _, _, _) in enumerate(lt_keys):
+                setattr(train_config, k_tog, lt_toggles[i].checked)
+                setattr(train_config, k_val, lt_sliders[i].value)
+        
+        slider_speed = UISlider(20, 140, SIDEBAR_WIDTH - 40, 20, 1, 50, 1, "Sim Speed", is_integer=True)
         
         toggle_sensors = UIToggle(20, 190, "Show Sensors", True)
         toggle_brain = UIToggle(20, 230, "Show Brain", True)
-        toggle_fast = UIToggle(20, 270, "Fast Mode (No Render)", False)
+        toggle_fast = UIToggle(20, 270, "Fast Mode", False)
         
-        ui_elements = [btn_reset, btn_back, slider_speed, toggle_sensors, toggle_brain, toggle_fast]
+        ui_elements = [btn_reset, btn_back, slider_speed, toggle_sensors, toggle_brain, toggle_fast] + lt_sliders + lt_toggles
         
         # Episode Loop
         for episode in range(episodes):
             if should_back: break
             if should_reset:
+
                 # Reset agent and history
-                if agent_choice == "classic": agent = QLearningAgent(actions)
-                else: agent = DQNAgent(actions)
+                if agent_choice == "classic": agent = QLearningAgent(actions, learning_rate=train_config.learning_rate, discount_factor=train_config.discount_factor, epsilon=train_config.epsilon_start)
+                else: agent = DQNAgent(actions, learning_rate=train_config.learning_rate, gamma=train_config.discount_factor, epsilon=train_config.epsilon_start)
                 avg_reward_history = []
                 completion_history = []
                 should_reset = False
@@ -386,7 +581,9 @@ def main():
                         return
                     
                     for ui in ui_elements:
-                        ui.handle_event(event)
+                        if ui.handle_event(event):
+                             # Update live config if UI changed
+                             update_live_config()
                 
                 if should_back: 
                     done = True
@@ -456,19 +653,50 @@ def main():
                             if car_rect.colliderect(block): hit_wall = True
                             
                         if hit_wall:
-                            step_reward -= 5000
+                            if train_config.use_wall_penalty:
+                                step_reward += train_config.wall_penalty
                             car.alive = False
                             
                         if car_rect.colliderect(finish_line):
-                            step_reward += 5000
+                            if train_config.use_goal_reward:
+                                step_reward += train_config.goal_reward
                             car.alive = False
                             finished_count += 1
                             
                         # Shaping
-                        step_reward += car.speed * 0.3
+                        if train_config.use_speed_reward:
+                             step_reward += car.speed * train_config.speed_reward_factor
+                             
                         current_sensors = states[i][:-1]
-                        if current_sensors[0] == 0: step_reward -= 5
-                        if current_sensors[4] == 0: step_reward -= 5
+                        if train_config.use_sensor_penalty:
+                            if current_sensors[0] == 0: step_reward += train_config.sensor_penalty # Left
+                            if current_sensors[4] == 0: step_reward += train_config.sensor_penalty # Right
+                            
+                        if train_config.use_idle_penalty:
+                            if car.speed < 1: step_reward += train_config.idle_penalty
+                            
+                        # New Rewards
+                        if train_config.use_distance_reward:
+                             # Reward for distance to finish logic? 
+                             # We don't have distance readily available in Car class easily without calculation
+                             # But we can use Y coordinate approximation since track is roughly bottom->up or circuit
+                             # Let's simple use "moving forward" logic or just skip if too complex for now?
+                             # Let's implement negative distance to finish.
+                             # Simple heuristic: Reward for distance traveled (speed) is already there.
+                             # Let's do: Reward based on checkpoint blocks? 
+                             # For now, let's just do a small constant reward for staying alive?
+                             # User asked for "Distance", maybe "Distance Traveled"?
+                             # Actually let's assume "Distance to Goal".
+                             dist_to_finish = math.hypot(car.x - finish_line.left, car.y - finish_line.top)
+                             # We want to maximize reward as dist decreases.
+                             # Change in distance? 
+                             # Let's stick to simple "Distance Traveled" which is equiv to Speed mostly.
+                             # Let's try: Reward = (1 - dist/MaxDist) * Factor
+                             step_reward += (1.0 - min(dist_to_finish, 1000)/1000.0) * train_config.distance_reward_factor
+                        
+                        if train_config.use_steering_penalty:
+                             if action == 3 or action == 4: # Left or Right
+                                 step_reward += train_config.steering_penalty
                         
                         frame_skip_rewards[i] += step_reward
                         car.total_reward += step_reward

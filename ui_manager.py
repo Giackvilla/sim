@@ -66,13 +66,14 @@ class UIButton:
         return False
 
 class UISlider:
-    def __init__(self, x, y, width, height, min_val, max_val, initial_val, label="Slider", is_integer=False):
+    def __init__(self, x, y, width, height, min_val, max_val, initial_val, label="Slider", is_integer=False, precision=2):
         self.rect = pygame.Rect(x, y, width, height)
         self.min_val = min_val
         self.max_val = max_val
         self.value = initial_val
         self.label = label
         self.is_integer = is_integer
+        self.precision = precision
         self.dragging = False
         self.font = get_font(14)
         
@@ -99,7 +100,10 @@ class UISlider:
 
     def draw(self, screen):
         # Label
-        val_str = f"{int(self.value)}" if self.is_integer else f"{self.value:.1f}"
+        if self.is_integer:
+            val_str = f"{int(self.value)}"
+        else:
+            val_str = f"{self.value:.{self.precision}f}"
         label_surf = self.font.render(f"{self.label}: {val_str}", True, COLORS["TEXT_SECONDARY"])
         screen.blit(label_surf, (self.rect.x, self.rect.y - 20))
         
