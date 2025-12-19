@@ -230,7 +230,7 @@ def draw_graph(screen, rect, reward_history, completion_history):
     if len(points_comp) > 1:
         pygame.draw.lines(screen, COLORS["ACCENT_PURPLE"], False, points_comp, 2)
 
-def draw_network_or_heatmap(screen, rect, agent, agent_name, heatmap=None, current_state_idx=None, current_action=None):
+def draw_network_or_heatmap(screen, rect, agent, agent_name, heatmap=None, current_state=None, current_action=None):
     # Draw Panel
     pygame.draw.rect(screen, COLORS["PANEL_BG"], rect, border_radius=12)
     pygame.draw.rect(screen, COLORS["BORDER"], rect, 1, border_radius=12)
@@ -246,7 +246,7 @@ def draw_network_or_heatmap(screen, rect, agent, agent_name, heatmap=None, curre
         if heatmap:
             # Update heatmap rect to fit content_rect
             heatmap.rect = content_rect
-            heatmap.draw(screen, current_state_idx, current_action)
+            heatmap.draw(screen, current_state, current_action)
             
     elif agent_name == "DQN (NN)":
         if not hasattr(agent, 'last_activations'): return
@@ -318,8 +318,8 @@ def main():
         if agent_choice == "classic":
             agent = QLearningAgent(actions)
             agent_name = "Q-Table"
-            from heatmap import DigitalHeatmap
-            heatmap = DigitalHeatmap(agent, 0, 0, 100, 100) # Rect updated later
+            from heatmap import SensorActionHeatmap
+            heatmap = SensorActionHeatmap(agent, 0, 0, 100, 100) # Rect updated later
         else:
             agent = DQNAgent(actions)
             agent_name = "DQN (NN)"
@@ -565,7 +565,7 @@ def main():
                     brain_rect = pygame.Rect(analysis_x + 10, 340, ANALYSIS_WIDTH - 20, 300)
                     
                     # Viz update
-                    current_state_idx = None
+                    current_state = None
                     current_action = None
                     
                     # Only update viz if not in fast mode OR if we want to see brain in fast mode?
@@ -589,11 +589,10 @@ def main():
                             v_state = get_state(cars[best_car_idx], blocks)
                             agent.forward(np.array(v_state))
                         elif agent_name == "Q-Table":
-                            s = states[best_car_idx]
-                            current_state_idx = heatmap.get_state_index(s)
+                            current_state = states[best_car_idx]
                             current_action = actions_chosen[best_car_idx]
                             
-                    draw_network_or_heatmap(screen, brain_rect, agent, agent_name, heatmap, current_state_idx, current_action)
+                    draw_network_or_heatmap(screen, brain_rect, agent, agent_name, heatmap, current_state, current_action)
 
                 pygame.display.flip()
                 clock.tick(FPS)
